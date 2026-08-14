@@ -208,33 +208,115 @@ async def create_key(payload: KeyGenerationRequest):
 
 # --- Protected API Routes (Called by External Developers) ---
 
+import os
+import json
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from fastapi.responses import JSONResponse
+import google.generativeai as genai
+
+# Configure Gemini AI using your environment variable set in Render
+GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY_2")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
 @app.post("/api/v1/extract-id")
 async def extract_id_document(
     file: UploadFile = File(...),
     auth_info: dict = Depends(verify_api_key)
 ):
     try:
+        # 1. Read uploaded image bytes directly from the request
         file_bytes = await file.read()
         
-        # --- Execute your LangGraph/Gemini Extraction here ---
-        # extracted_result = run_langgraph_pipeline(file_bytes)
+        if not file_bytes:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+        # 2. Prepare Gemini Model (use gemini-2.5-flash or gemini-1.5-flash)
+        model = genai.GenerativeModel("gemini-2.5-flash")
+
+        # 3. Format the image payload for Gemini SDK
+        image_part = {
+            "mime_type": file.content_type or "image/jpeg",
+            "data": file_bytes
+        }
+
+        # 4. Strict extraction prompt forcing JSON format
+        prompt = """
+        You are an expert OCR document extractor. 
+        Analyze the provided document image and extract the following fields in valid JSON format ONLY:
+        {
+          "full_name": "string or null",
+          "dob": "DD/MM/YYYY or null",
+          "gender": "MALE/FEMALE/OTHER or null",
+          "document_type": "Aadhaar/PAN/Passport/etc",
+          "id_number": "string or null"
+        }
+        Do not wrap in markdown fences or add extra text.
+        """
+
+        # 5. Call Gemini API
+        response = model.generate_content([prompt, image_part])
         
+        # 6. Parse JSON output from Gemini
+        cleaned_text = response.text.strip().replace("```json", "").replace("```", "")
+        extracted_data = json.loads(cleaned_text)
+
+        # 7. Mask sensitive government ID numbers before returning
+        if "id_number" in extracted_data and extracted_data["id_number"]:
+            extracted_data["id_number"] = "[ID Redacted]"
+
         return {
             "status": "success",
-            "authenticated_as": auth_info.get("developer_name"),
-            "extracted_data": {
-                "full_name": "Sample Name",
-                "dob": "01/01/1990",
-                "gender": "MALE",
-                "aadhaar_number": "[Aadhaar Redacted]"
-            }
+            "authenticated_as": auth_info.get("developer_name", "Developer"),
+            "extracted_data": extracted_data
         }
-    except Exception as err:
-        # Prevents worker crash and returns readable JSON
+
+    except json.JSONDecodeError:
+        # Fallback if Gemini returns plain text instead of structured JSON
+        return {
+            "status": "success",
+            "authenticated_as": auth_info.get("developer_name", "Developer"),
+            "raw_text": response.text
+        }
+
+    except Exception as e:
+        # Prevents 502 Bad Gateway by catching runtime errors gracefully
         return JSONResponse(
             status_code=500,
-            content={"status": "error", "message": f"Extraction failed: {str(err)}"}
+            content={
+                "status": "error",
+                "detail": f"Document extraction failed: {str(e)}"
+            }
         )
+
+
+# @app.post("/api/v1/extract-id")
+# async def extract_id_document(
+#     file: UploadFile = File(...),
+#     auth_info: dict = Depends(verify_api_key)
+# ):
+#     try:
+#         file_bytes = await file.read()
+        
+#         # --- Execute your LangGraph/Gemini Extraction here ---
+#         # extracted_result = run_langgraph_pipeline(file_bytes)
+        
+#         return {
+#             "status": "success",
+#             "authenticated_as": auth_info.get("developer_name"),
+#             "extracted_data": {
+#                 "full_name": "Sample Name",
+#                 "dob": "01/01/1990",
+#                 "gender": "MALE",
+#                 "aadhaar_number": "[Aadhaar Redacted]"
+#             }
+#         }
+#     except Exception as err:
+#         # Prevents worker crash and returns readable JSON
+#         return JSONResponse(
+#             status_code=500,
+#             content={"status": "error", "message": f"Extraction failed: {str(err)}"}
+#         )
 
 
 # @app.post("/api/v1/extract-id")
