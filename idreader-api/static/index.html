@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iDReader | Developer Portal</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🛡️ iDReader API Portal</h1>
+      <p>Get instant access to AI-powered ID document extraction (Aadhaar, PAN, Passport, DL, Voter ID).</p>
+    </header>
+
+    <!-- Key Generator Card -->
+    <div class="card">
+      <h2>🔑 Generate API Key</h2>
+      <p class="subtitle">Enter your app or project name to issue a live API key.</p>
+      
+      <div class="form-group">
+        <input type="text" id="clientNameInput" placeholder="e.g. My Fintech App" />
+        <button id="generateBtn" onclick="generateKey()">Generate Key</button>
+      </div>
+
+      <!-- Result Box (Hidden by default) -->
+      <div id="resultBox" class="result-box hidden">
+        <div class="alert warning">
+          ⚠️ <strong>Save this key immediately!</strong> For security reasons, it won't be shown again.
+        </div>
+        <div class="key-display">
+          <input type="text" id="apiKeyDisplay" readonly />
+          <button onclick="copyKey()">📋 Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Quickstart Code snippet -->
+    <div class="card">
+      <h2>🚀 Quickstart Integration</h2>
+      <p class="subtitle">Call the API from your application using cURL or Python:</p>
+
+      <pre><code>curl -X POST "<span id="domainUrl">http://localhost:8000</span>/api/v1/extract-id" \
+  -H "X-API-Key: <span class="highlight">YOUR_API_KEY</span>" \
+  -F "file=@/path/to/document.jpg"</code></pre>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
